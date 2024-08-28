@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "FishLakes",
+    "slug": "FishLakes",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/fishlakes.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/fishlakes.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/fishlakes.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow FishLakes to use your location."
+        }
+      ]
+    ]
+  }
+}
