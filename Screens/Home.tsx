@@ -19,18 +19,17 @@ const windowWidth = Dimensions.get("window").width;
 const windowHeight = Dimensions.get("window").height;
 
 const Home = () => {
-  const [errorMsg, setErrorMsg] = useState(null);
   const [region, setRegion] = useState(null);
 
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied");
+        console.log("Permission to access location was denied");
         return;
       }
 
-      let position = await Location.getCurrentPositionAsync({});
+      let position = await Location.getCurrentPositionAsync({accuracy: Location.Accuracy.Lowest});
 
       setRegion({
         latitude: position.coords.latitude,
