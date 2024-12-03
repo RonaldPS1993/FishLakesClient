@@ -127,7 +127,7 @@ const Home = () => {
     console.log(region);
     const lakes = await searchNearbyLakes(region.latitude, region.longitude, caculateRadius(region.latitudeDelta));
     setNearbyLakes(lakes);
-    console.log(nearbyLakes);
+    console.log(nearbyLakes.length);
     
   };
 
