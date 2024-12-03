@@ -14,12 +14,76 @@ import {
   responsiveVerticalScale,
   responsiveScale,
 } from "../lib/sizeFunctions";
+import { useFonts } from "expo-font";
+import { Double } from "react-native/Libraries/Types/CodegenTypes";
 
 const windowWidth = Dimensions.get("window").width;
 const windowHeight = Dimensions.get("window").height;
+interface Lakes {
+  name: string;
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    }
+  }
+}
+
+interface Region {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+}
+
+const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
+const searchNearbyLakes = async (latitude: Double, longitude: Double, radius: Double): Promise<Lakes[]> => {
+  try {
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?` +
+      `location=${latitude},${longitude}&` +
+      `radius=${radius}&` +
+      `type=natural_feature&` +
+      `keyword=lake&` +
+      `key=${GOOGLE_API_KEY}`
+    );
+
+    const data = await response.json();
+    
+    if (data.status === 'OK') {
+      return data.results;
+    } else {
+      console.error('Error fetching nearby lakes:', data.status);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error fetching nearby lakes:', error);
+    return [];
+  }
+};
 
 const Home = () => {
-  const [region, setRegion] = useState(null);
+  const [fontsLoaded] = useFonts({
+    poppins_regular: require("../assets/fonts/Poppins-Regular.ttf"),
+    poppins_bold: require("../assets/fonts/Poppins-Bold.ttf"),
+    poppins_mediums: require("../assets/fonts/Poppins-Medium.ttf"),
+  });
+  const [region, setRegion] = useState({
+    latitude: 0,
+    longitude: 0,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  });
+  const [latitudeDelta, setLatitudeDelta] = useState(0.02);
+  const [nearbyLakes, setNearbyLakes] = useState<Lakes[]>([]);  // Add this line
+
+  const caculateRadius = (deltaLat: Double) => {
+    let radiusMiles = deltaLat * 69
+    let radiusMeters = radiusMiles * 1609.34
+        
+    return radiusMeters
+  };
 
   useEffect(() => {
     (async () => {
@@ -29,22 +93,58 @@ const Home = () => {
         return;
       }
 
-      let position = await Location.getCurrentPositionAsync({accuracy: Location.Accuracy.Lowest});
+      try {
+        let position = await Location.getCurrentPositionAsync({
+          accuracy: Location.LocationAccuracy.Lowest
+        });
 
-      setRegion({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      });
+        const newRegion = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          latitudeDelta: latitudeDelta,
+          longitudeDelta: 0.02,
+        };
+        
+        setRegion(newRegion);
+
+        const lakes = await searchNearbyLakes(
+          position.coords.latitude, 
+          position.coords.longitude, 
+          caculateRadius(latitudeDelta)
+        );
+        setNearbyLakes(lakes);  // Store the lakes in state
+      } catch (error) {
+        console.error("Error getting location:", error);
+      }
+      
+
     })();
   }, []);
 
+  
+
+  const handleRegionChange = async (region: Region) => {
+    console.log(region);
+    const lakes = await searchNearbyLakes(region.latitude, region.longitude, caculateRadius(region.latitudeDelta));
+    setNearbyLakes(lakes);
+    console.log(nearbyLakes);
+    
+  };
+
   return (
     <View style={styles.container}>
-      <MapView style={styles.map} region={region}>
-        <View style={styles.card}></View>
-      </MapView>
+      {region.latitude !== 0 && (  // Only render map when we have valid coordinates
+        <MapView 
+          style={styles.map} 
+          region={region}
+          initialRegion={region}
+          onRegionChangeComplete={handleRegionChange}
+        >
+          <View style={styles.card}>
+            <Text style={styles.lakeName}>Lake Ronald</Text>
+          </View>
+        </MapView>
+      )}
     </View>
   );
 };
@@ -62,7 +162,6 @@ const styles = StyleSheet.create({
   map: {
     width: "100%",
     height: "100%",
-    flex: 1,
     alignItems: "center",
     flexDirection: "column",
     justifyContent: "flex-end"
@@ -71,7 +170,7 @@ const styles = StyleSheet.create({
     width: responsiveScale(300),
     height: responsiveVerticalScale(150),
     backgroundColor: "white",
-    borderRadius: responsiveModerateScale(10),
+    borderRadius: responsiveModerateScale(15),
     shadowColor: "black",
     shadowOffset: {
       width: 0,
@@ -81,5 +180,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 20,
     bottom: responsiveModerateScale(50)
+  },
+  lakeName: {
+    fontSize: responsiveScale(16),
+    color: "black",
+    paddingLeft: responsiveModerateScale(30),
+    paddingTop: responsiveModerateScale(20),
+    fontFamily: "poppins_regular"
   },
 });

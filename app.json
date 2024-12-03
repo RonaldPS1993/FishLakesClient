@@ -4,10 +4,10 @@
     "slug": "FishLakes",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/fishlakes.png",
+    "icon": "./assets/icons/fishlakes.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/icons/splash.png",
       "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
@@ -16,12 +16,12 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fishlakes.png",
+        "foregroundImage": "./assets/icons/fishlakes.png",
         "backgroundColor": "#ffffff"
       }
     },
     "web": {
-      "favicon": "./assets/fishlakes.png"
+      "favicon": "./assets/icons/fishlakes.png"
     },
     "plugins": [
       [
@@ -29,7 +29,9 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow FishLakes to use your location."
         }
-      ]
-    ]
+      ],
+      "expo-font"
+    ],
+    "newArchEnabled": true
   }
 }
