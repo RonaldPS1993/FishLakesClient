@@ -15,30 +15,10 @@ import {
   responsiveScale,
 } from "../lib/sizeFunctions";
 import { useFonts } from "expo-font";
-import { Double } from "react-native/Libraries/Types/CodegenTypes";
-
-const windowWidth = Dimensions.get("window").width;
-const windowHeight = Dimensions.get("window").height;
-interface Lakes {
-  name: string;
-  geometry: {
-    location: {
-      lat: number;
-      lng: number;
-    }
-  }
-}
-
-interface Region {
-  latitude: number;
-  longitude: number;
-  latitudeDelta: number;
-  longitudeDelta: number;
-}
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
-const searchNearbyLakes = async (latitude: Double, longitude: Double, radius: Double): Promise<Lakes[]> => {
+const searchNearbyLakes = async (latitude, longitude, radius) => {
   try {
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/place/nearbysearch/json?` +
@@ -76,9 +56,9 @@ const Home = () => {
     longitudeDelta: 0.02,
   });
   const [latitudeDelta, setLatitudeDelta] = useState(0.02);
-  const [nearbyLakes, setNearbyLakes] = useState<Lakes[]>([]);  // Add this line
+  const [nearbyLakes, setNearbyLakes] = useState([]);  // Add this line
 
-  const caculateRadius = (deltaLat: Double) => {
+  const caculateRadius = (deltaLat) => {
     let radiusMiles = deltaLat * 69
     let radiusMeters = radiusMiles * 1609.34
         
@@ -123,7 +103,7 @@ const Home = () => {
 
   
 
-  const handleRegionChange = async (region: Region) => {
+  const handleRegionChange = async (region) => {
     console.log(region);
     const lakes = await searchNearbyLakes(region.latitude, region.longitude, caculateRadius(region.latitudeDelta));
     setNearbyLakes(lakes);
