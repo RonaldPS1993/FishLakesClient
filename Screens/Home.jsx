@@ -31,9 +31,10 @@ const Home = () => {
     latitudeDelta: 0.02,
     longitudeDelta: 0.02,
   });
-  const [nearbyLakes, setNearbyLakes] = useState([]); // Add this line
+  const [nearbyLakes, setNearbyLakes] = useState([]);
   const fetchTimeoutRef = useRef(null);
   const requestIdRef = useRef(0);
+  const markerSelectedRef = useRef(false);
 
   const caculateRadius = (deltaLat) => {
     let radiusMiles = deltaLat * 69;
@@ -50,7 +51,7 @@ const Home = () => {
           `radius=${radius}&` +
           `type=natural_feature&` +
           `keyword=lake&` +
-          `key=${GOOGLE_API_KEY}`
+          `key=${GOOGLE_API_KEY}`,
       );
 
       const data = await response.json();
@@ -67,17 +68,14 @@ const Home = () => {
   };
 
   const doFetchForRegion = async (region) => {
+    console.log(region, "REGION");
+
     const radius = caculateRadius(region.latitudeDelta);
     const results = await searchNearbyLakes(
       region.latitude,
       region.longitude,
-      radius
+      radius,
     );
-
-    for (const element of results) {
-      console.log(element.name);
-    }
-    console.log("SPACE");
 
     setNearbyLakes(results);
   };
@@ -109,7 +107,7 @@ const Home = () => {
         const lakes = await searchNearbyLakes(
           position.coords.latitude,
           position.coords.longitude,
-          initialRadius
+          initialRadius,
         );
 
         setNearbyLakes(lakes); // Store the lakes in state
@@ -120,6 +118,7 @@ const Home = () => {
   }, []);
 
   const handleRegionChange = async (region) => {
+    if (markerSelectedRef.current) return;
     if (fetchTimeoutRef.current) {
       clearTimeout(fetchTimeoutRef.current);
     }
@@ -140,6 +139,9 @@ const Home = () => {
           initialRegion={region}
           onRegionChangeComplete={handleRegionChange}
           showsPointsOfInterest={false}
+          onPress={() => {
+            markerSelectedRef.current = false;
+          }}
         >
           {nearbyLakes.map((marker) => (
             <Marker
@@ -150,6 +152,15 @@ const Home = () => {
               }}
               pinColor="#82FFBA"
               title={marker.name}
+              onPress={() => {
+                markerSelectedRef.current = true;
+              }}
+              onCalloutPress={() => {
+                markerSelectedRef.current = false;
+              }}
+              onDeselect={() => {
+                markerSelectedRef.current = false;
+              }}
             />
           ))}
         </MapView>
