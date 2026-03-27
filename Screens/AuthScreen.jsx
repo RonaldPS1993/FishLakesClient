@@ -10,13 +10,10 @@ import {
 } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import * as WebBrowser from "expo-web-browser";
 import { supabase } from "../lib/supabase";
 
-// Configure Google Sign In once at module level
-GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-});
+WebBrowser.maybeCompleteAuthSession();
 
 /**
  * Minimal auth screen with Apple (iOS) and Google sign-in buttons.
@@ -27,13 +24,13 @@ export default function AuthScreen() {
 
   const signInWithApple = async () => {
     try {
-      setLoading(true);
       const rawNonce = Crypto.randomUUID();
       const hashedNonce = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         rawNonce
       );
 
+      // Don't set loading before signInAsync — keeps the app responsive behind the Apple dialog
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -41,6 +38,9 @@ export default function AuthScreen() {
         ],
         nonce: hashedNonce,
       });
+
+      // Dialog closed — show spinner while calling Supabase
+      setLoading(true);
 
       if (!credential.identityToken) {
         throw new Error("No identity token received from Apple");
@@ -67,25 +67,62 @@ export default function AuthScreen() {
   const signInWithGoogle = async () => {
     try {
       setLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
 
-      if (!userInfo.data?.idToken) {
-        throw new Error("No ID token received from Google");
-      }
-
-      const { error } = await supabase.auth.signInWithIdToken({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        token: userInfo.data.idToken,
+        options: {
+          skipBrowserRedirect: true,
+        },
       });
 
       if (error) throw error;
-      // Session is set automatically — App.jsx onAuthStateChange handles navigation
-    } catch (error) {
-      // SIGN_IN_CANCELLED means user dismissed — not an error to show
-      if (error.code !== "SIGN_IN_CANCELLED") {
-        Alert.alert("Sign In Error", error.message);
+
+      // Opens browser — Supabase redirects back to fishlakes:// (configured as Site URL)
+      const result = await WebBrowser.openAuthSessionAsync(data.url, "fishlakes://");
+
+      if (result.type === "success") {
+        // Normalize fishlakes:?code=... → fishlakes://?code=... for proper URL parsing
+        const normalizedUrl = result.url.replace(/^([\w]+):(?!\/{2})/, "$1://");
+        const authCode = new URL(normalizedUrl).searchParams.get("code");
+
+        // Workaround: Supabase SDK v2 stores the PKCE verifier under a fixed key but
+        // exchangeCodeForSession now looks it up via a state-based key — bypassing directly.
+        const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+        const verifierKey = `sb-${new URL(process.env.EXPO_PUBLIC_SUPABASE_URL).hostname.split(".")[0]}-auth-token-code-verifier`;
+        const stored = await AsyncStorage.getItem(verifierKey);
+        const codeVerifier = stored ? JSON.parse(stored) : null;
+
+        if (!authCode || !codeVerifier) {
+          throw new Error(`Missing auth code or PKCE verifier (code=${!!authCode}, verifier=${!!codeVerifier})`);
+        }
+
+        // Exchange code + verifier with Supabase token endpoint directly
+        const tokenRes = await fetch(
+          `${process.env.EXPO_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=pkce`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ auth_code: authCode, code_verifier: codeVerifier }),
+          }
+        );
+
+        const tokenData = await tokenRes.json();
+        if (tokenData.error) throw new Error(tokenData.error_description || tokenData.error);
+
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+        });
+        if (sessionError) throw sessionError;
+
+        await AsyncStorage.removeItem(verifierKey);
+        // Session is set — App.jsx onAuthStateChange handles navigation
       }
+    } catch (error) {
+      Alert.alert("Sign In Error", error.message);
     } finally {
       setLoading(false);
     }

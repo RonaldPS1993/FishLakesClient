@@ -44,6 +44,7 @@ const Home = () => {
   };
 
   const searchNearbyLakes = async (latitude, longitude, radius) => {
+    console.log(latitude, longitude, radius, "LATITUDE, LONGITUDE, RADIUS");
     try {
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/nearbysearch/json?` +
@@ -68,7 +69,6 @@ const Home = () => {
   };
 
   const doFetchForRegion = async (region) => {
-    console.log(region, "REGION");
 
     const radius = caculateRadius(region.latitudeDelta);
     const results = await searchNearbyLakes(

@@ -2,6 +2,7 @@
   "expo": {
     "name": "FishLakes",
     "slug": "FishLakes",
+    "scheme": "fishlakes",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icons/fishlakes.png",
@@ -19,6 +20,7 @@
       }
     },
     "android": {
+      "package": "com.ronaldpenasollet.FishLakes",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/fishlakes.png",
         "backgroundColor": "#ffffff"
@@ -45,8 +47,19 @@
       ],
       "expo-font",
       "expo-apple-authentication",
-      "@react-native-google-signin/google-signin"
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.216478643881-ah9joinuchar60ok4nb8at48hc5bl6j2"
+        }
+      ],
+      "expo-web-browser"
     ],
-    "newArchEnabled": true
+    "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "9fb2ec6f-eab5-4256-a781-40191e6b2e91"
+      }
+    }
   }
 }

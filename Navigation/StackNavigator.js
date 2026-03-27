@@ -11,36 +11,36 @@ const Stack = createNativeStackNavigator();
 
 /**
  * Root stack navigator.
- * Home (map) is always accessible — no auth gate.
- * Auth screen is presented as a modal when sign-in is required.
- * Session prop drives the header logout button visibility.
+ * Shows Auth screen first when no session exists.
+ * Switches to Home automatically when session is set.
  *
  * @param {{ session: object|null }} props
  */
 const MyStack = ({ session }) => {
   return (
     <Stack.Navigator>
-      <Stack.Screen
-        name="Home"
-        options={{
-          headerShown: !!session,
-          title: "FishLake",
-          headerRight: () =>
-            session ? (
+      {session ? (
+        <Stack.Screen
+          name="Home"
+          options={{
+            headerShown: true,
+            title: "FishLake",
+            headerRight: () => (
               <TouchableOpacity onPress={() => supabase.auth.signOut()}>
                 <Text style={{ color: "#4285F4", marginRight: 10 }}>Logout</Text>
               </TouchableOpacity>
-            ) : null,
-        }}
-      >
-        {(props) => <HomeScreen {...props} session={session} />}
-      </Stack.Screen>
-
-      <Stack.Screen
-        name="Auth"
-        component={AuthScreen}
-        options={{ headerShown: false, presentation: "modal" }}
-      />
+            ),
+          }}
+        >
+          {(props) => <HomeScreen {...props} session={session} />}
+        </Stack.Screen>
+      ) : (
+        <Stack.Screen
+          name="Auth"
+          component={AuthScreen}
+          options={{ headerShown: false }}
+        />
+      )}
     </Stack.Navigator>
   );
 };
