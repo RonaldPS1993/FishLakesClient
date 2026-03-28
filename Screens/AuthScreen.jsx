@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -19,8 +19,20 @@ WebBrowser.maybeCompleteAuthSession();
  * Minimal auth screen with Apple (iOS) and Google sign-in buttons.
  * Final design deferred to Phase 2 — this is the functional scaffold.
  */
-export default function AuthScreen() {
+export default function AuthScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
+  const fromGate = route?.params?.fromGate;
+
+  // When pushed as an auth gate, return to the previous screen after sign-in
+  useEffect(() => {
+    if (!fromGate) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session && fromGate) {
+        navigation.goBack();
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [fromGate, navigation]);
 
   const signInWithApple = async () => {
     try {
