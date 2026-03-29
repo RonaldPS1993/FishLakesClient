@@ -1,26 +1,22 @@
 import React from "react";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import AuthScreen from "../Screens/AuthScreen";
 import CatchesScreen from "../Screens/CatchesScreen";
 import ProfileScreen from "../Screens/ProfileScreen";
+import MapScreen from "../Screens/MapScreen";
+import LakeDetailScreen from "../Screens/LakeDetailScreen";
+import HomeScreen from "../Screens/HomeScreen";
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const ExploreStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
-// Placeholder screens — replaced in Plans 02-02 and 02-03
-const PlaceholderScreen = ({ name }) => (
-  <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-    <Text>{name}</Text>
-  </View>
-);
-
 /**
- * Home stack: HomeMain (placeholder), LakeDetail (placeholder), Auth gate
+ * Home stack: HomeMain (HomeScreen), LakeDetail, Auth gate
  * @param {{ session: object|null }} props
  */
 const HomeStackScreen = ({ session }) => {
@@ -30,14 +26,13 @@ const HomeStackScreen = ({ session }) => {
         name="HomeMain"
         options={{ headerShown: false }}
       >
-        {() => <PlaceholderScreen name="Home" />}
+        {(props) => <HomeScreen {...props} session={session} />}
       </HomeStack.Screen>
       <HomeStack.Screen
         name="LakeDetail"
-        options={{ headerShown: false }}
-      >
-        {() => <PlaceholderScreen name="Lake Detail" />}
-      </HomeStack.Screen>
+        component={LakeDetailScreen}
+        options={{ title: "", headerTransparent: true, headerTintColor: "#FFFFFF" }}
+      />
       <HomeStack.Screen
         name="Auth"
         component={AuthScreen}
@@ -48,23 +43,21 @@ const HomeStackScreen = ({ session }) => {
 };
 
 /**
- * Explore stack: Map (placeholder), LakeDetail (placeholder), Auth gate
+ * Explore stack: Map (MapScreen), LakeDetail, Auth gate
  */
 const ExploreStackScreen = () => {
   return (
     <ExploreStack.Navigator>
       <ExploreStack.Screen
         name="Map"
+        component={MapScreen}
         options={{ headerShown: false }}
-      >
-        {() => <PlaceholderScreen name="Map" />}
-      </ExploreStack.Screen>
+      />
       <ExploreStack.Screen
         name="LakeDetail"
-        options={{ headerShown: false }}
-      >
-        {() => <PlaceholderScreen name="Lake Detail" />}
-      </ExploreStack.Screen>
+        component={LakeDetailScreen}
+        options={{ title: "", headerTransparent: true, headerTintColor: "#FFFFFF" }}
+      />
       <ExploreStack.Screen
         name="Auth"
         component={AuthScreen}
