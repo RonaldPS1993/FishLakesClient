@@ -55,9 +55,7 @@ export default function LakeDetailScreen({ navigation, route }) {
     loadLake();
   }, [hylakId]);
 
-  /**
-   * Opens Apple Maps (iOS) or Google Maps (Android) with lake coordinates.
-   */
+  // Opens Apple Maps (iOS) or Google Maps (Android) with lake coordinates
   const openDirections = () => {
     if (!lake) return;
     const label = encodeURIComponent(lake.lake_name || "Lake");
@@ -71,9 +69,7 @@ export default function LakeDetailScreen({ navigation, route }) {
     });
   };
 
-  /**
-   * Toggles favorite status — auth gate pushes Auth screen if not signed in.
-   */
+  // Toggles favorite status — auth gate pushes Auth screen if not signed in
   const toggleFavorite = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -187,27 +183,8 @@ const styles = StyleSheet.create({
   aboutSection: { marginTop: 20 },
   sectionTitle: { fontFamily: "poppins_bold", fontSize: 16, color: "#1A1A2E", marginBottom: 8 },
   aboutText: { fontFamily: "poppins_regular", fontSize: 14, color: "#6B7280", lineHeight: 22 },
-  directionsButton: {
-    backgroundColor: "#1A3C6E",
-    borderRadius: 12,
-    paddingVertical: 14,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 24,
-  },
+  directionsButton: { backgroundColor: "#1A3C6E", borderRadius: 12, paddingVertical: 14, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 24 },
   directionsButtonText: { fontFamily: "poppins_bold", fontSize: 16, color: "#FFFFFF" },
-  favoriteButton: {
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingVertical: 14,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-  },
+  favoriteButton: { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingVertical: 14, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 12 },
   favoriteButtonText: { fontFamily: "poppins_bold", fontSize: 16, color: "#1A3C6E" },
 });
