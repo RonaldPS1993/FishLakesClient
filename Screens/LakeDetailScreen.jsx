@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useDispatch, useSelector } from "react-redux";
+import { setFavoriteHylakId, clearFavorite } from "../store/lakesSlice";
 import { supabase } from "../lib/supabase";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
@@ -20,40 +22,43 @@ const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
  * @param {{ navigation: object, route: object }} props
  */
 export default function LakeDetailScreen({ navigation, route }) {
-  const { hylakId } = route.params;
+  // lakeId may be a hylak_id integer (from hydrolakes) or a UUID string (from Google Places-only lakes)
+  const { lakeId, hylakId } = route.params;
+  const lakeIdentifier = lakeId ?? hylakId; // support both old and new navigation param names
   const [lake, setLake] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isFavorite, setIsFavorite] = useState(false);
+  const dispatch = useDispatch();
+  const favoriteHylakId = useSelector((state) => state.lakes.favoriteHylakId);
+  const isFavorite = favoriteHylakId === lakeIdentifier;
 
-  // Fetch lake detail and favorite status in parallel on mount
+  // Fetch lake detail on mount — lakeIdentifier may be hylak_id or UUID
   useEffect(() => {
     const loadLake = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setLoading(false); return; }
+      if (!session) {
+        console.error("[LakeDetail] no session — cannot load lake");
+        setLoading(false);
+        return;
+      }
       const token = session.access_token;
       try {
-        const [lakeRes, favRes] = await Promise.all([
-          fetch(`${SERVER_URL}/api/lakes/${hylakId}`, {
-            headers: { "Authorization": `Bearer ${token}` },
-          }),
-          fetch(`${SERVER_URL}/api/users/me/favorite`, {
-            headers: { "Authorization": `Bearer ${token}` },
-          }),
-        ]);
+        const lakeRes = await fetch(`${SERVER_URL}/api/lakes/${lakeIdentifier}`, {
+          headers: { "Authorization": `Bearer ${token}` },
+        });
         const lakeJson = await lakeRes.json();
-        const favJson = await favRes.json();
-        if (lakeJson.status === "Success") setLake(lakeJson.data);
-        if (favJson.status === "Success" && favJson.data) {
-          setIsFavorite(favJson.data.hylak_id === hylakId);
+        if (lakeJson.status === "Success") {
+          setLake(lakeJson.data);
+        } else {
+          console.error("[LakeDetail] lake fetch failed — status:", lakeRes.status, "body:", JSON.stringify(lakeJson));
         }
       } catch (error) {
-        console.error("Error loading lake detail:", error);
+        console.error("[LakeDetail] fetch threw:", error);
       } finally {
         setLoading(false);
       }
     };
     loadLake();
-  }, [hylakId]);
+  }, [lakeIdentifier]);
 
   // Opens Apple Maps (iOS) or Google Maps (Android) with lake coordinates
   const openDirections = () => {
@@ -78,11 +83,11 @@ export default function LakeDetailScreen({ navigation, route }) {
     }
     try {
       const method = isFavorite ? "DELETE" : "POST";
-      await fetch(`${SERVER_URL}/api/lakes/${hylakId}/favorite`, {
+      await fetch(`${SERVER_URL}/api/lakes/${lakeIdentifier}/favorite`, {
         method,
         headers: { "Authorization": `Bearer ${session.access_token}` },
       });
-      setIsFavorite(!isFavorite);
+      dispatch(isFavorite ? clearFavorite() : setFavoriteHylakId(lakeIdentifier));
     } catch (error) {
       console.error("Error toggling favorite:", error);
     }
@@ -91,7 +96,7 @@ export default function LakeDetailScreen({ navigation, route }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1A3C6E" />
+        <ActivityIndicator size="large" color="#0265BF" />
       </View>
     );
   }
@@ -108,13 +113,10 @@ export default function LakeDetailScreen({ navigation, route }) {
   return (
     <ScrollView style={styles.container} bounces={false}>
       {/* Hero photo */}
-      {lake.photo_url ? (
-        <Image source={{ uri: lake.photo_url }} style={styles.heroPhoto} />
-      ) : (
-        <View style={[styles.heroPhoto, styles.heroPlaceholder]}>
-          <Ionicons name="image-outline" size={48} color="#9CA3AF" />
-        </View>
-      )}
+      <Image
+        source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
+        style={styles.heroPhoto}
+      />
 
       <View style={styles.content}>
         {/* Lake name */}
@@ -124,14 +126,14 @@ export default function LakeDetailScreen({ navigation, route }) {
         <View style={styles.statsRow}>
           {lake.depth_avg != null && (
             <View style={styles.statItem}>
-              <Ionicons name="water-outline" size={18} color="#1A3C6E" />
+              <Ionicons name="water-outline" size={18} color="#0265BF" />
               <Text style={styles.statValue}>{lake.depth_avg.toFixed(1)} m</Text>
               <Text style={styles.statLabel}>Avg Depth</Text>
             </View>
           )}
           {lake.lake_area != null && (
             <View style={styles.statItem}>
-              <Ionicons name="resize-outline" size={18} color="#1A3C6E" />
+              <Ionicons name="resize-outline" size={18} color="#0265BF" />
               <Text style={styles.statValue}>{lake.lake_area.toFixed(1)} km²</Text>
               <Text style={styles.statLabel}>Area</Text>
             </View>
@@ -157,7 +159,7 @@ export default function LakeDetailScreen({ navigation, route }) {
           <Ionicons
             name={isFavorite ? "heart" : "heart-outline"}
             size={20}
-            color={isFavorite ? "#EF4444" : "#1A3C6E"}
+            color={isFavorite ? "#EF4444" : "#0265BF"}
           />
           <Text style={[styles.favoriteButtonText, isFavorite && { color: "#EF4444" }]}>
             {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
@@ -173,7 +175,6 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" },
   errorText: { fontFamily: "poppins_regular", fontSize: 16, color: "#6B7280", marginTop: 12 },
   heroPhoto: { width: "100%", height: 240 },
-  heroPlaceholder: { backgroundColor: "#E5E7EB", justifyContent: "center", alignItems: "center" },
   content: { padding: 20 },
   lakeName: { fontFamily: "poppins_bold", fontSize: 24, color: "#1A1A2E" },
   statsRow: { flexDirection: "row", marginTop: 16, gap: 24 },
@@ -183,8 +184,8 @@ const styles = StyleSheet.create({
   aboutSection: { marginTop: 20 },
   sectionTitle: { fontFamily: "poppins_bold", fontSize: 16, color: "#1A1A2E", marginBottom: 8 },
   aboutText: { fontFamily: "poppins_regular", fontSize: 14, color: "#6B7280", lineHeight: 22 },
-  directionsButton: { backgroundColor: "#1A3C6E", borderRadius: 12, paddingVertical: 14, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 24 },
+  directionsButton: { backgroundColor: "#0265BF", borderRadius: 12, paddingVertical: 14, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 24 },
   directionsButtonText: { fontFamily: "poppins_bold", fontSize: 16, color: "#FFFFFF" },
   favoriteButton: { borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 12, paddingVertical: 14, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 12 },
-  favoriteButtonText: { fontFamily: "poppins_bold", fontSize: 16, color: "#1A3C6E" },
+  favoriteButtonText: { fontFamily: "poppins_bold", fontSize: 16, color: "#0265BF" },
 });
