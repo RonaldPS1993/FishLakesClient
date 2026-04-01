@@ -13,6 +13,30 @@ import * as Crypto from "expo-crypto";
 import * as WebBrowser from "expo-web-browser";
 import { supabase } from "../lib/supabase";
 
+const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
+
+/**
+ * Creates a profile row for the authenticated user.
+ * Called after every successful sign-in. Safe to call if profile already exists
+ * (server returns VALIDATION_ERROR which we silently ignore).
+ * @param {string} accessToken - Supabase access token
+ */
+const registerProfile = async (accessToken) => {
+  try {
+    await fetch(`${SERVER_URL}/api/auth/register`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    // Ignore response — success means profile created; VALIDATION_ERROR means it already exists.
+  } catch (err) {
+    // Network failure on register is non-fatal — user can still use the app.
+    console.error("registerProfile: network error", err.message);
+  }
+};
+
 WebBrowser.maybeCompleteAuthSession();
 
 /**
@@ -58,13 +82,18 @@ export default function AuthScreen({ navigation, route }) {
         throw new Error("No identity token received from Apple");
       }
 
-      const { error } = await supabase.auth.signInWithIdToken({
+      const { data: appleSession, error } = await supabase.auth.signInWithIdToken({
         provider: "apple",
         token: credential.identityToken,
         nonce: rawNonce,
       });
 
       if (error) throw error;
+
+      // Auto-create profile row for new users (no-op if profile already exists)
+      if (appleSession?.session?.access_token) {
+        await registerProfile(appleSession.session.access_token);
+      }
       // Session is set automatically — App.jsx onAuthStateChange handles navigation
     } catch (error) {
       // ERR_REQUEST_CANCELED means user dismissed the sheet — not an error to show
@@ -131,6 +160,9 @@ export default function AuthScreen({ navigation, route }) {
         if (sessionError) throw sessionError;
 
         await AsyncStorage.removeItem(verifierKey);
+
+        // Auto-create profile row for new users (no-op if profile already exists)
+        await registerProfile(tokenData.access_token);
         // Session is set — App.jsx onAuthStateChange handles navigation
       }
     } catch (error) {

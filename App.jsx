@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { useFonts } from "expo-font";
+import { Provider } from "react-redux";
 import { supabase } from "./lib/supabase";
+import { store } from "./store";
 import TabNavigator from "./Navigation/TabNavigator";
 
 export default function App() {
@@ -37,8 +39,10 @@ export default function App() {
 
   // Always render tabs — individual tabs handle their own auth gating
   return (
-    <NavigationContainer>
-      <TabNavigator session={session} />
-    </NavigationContainer>
+    <Provider store={store}>
+      <NavigationContainer>
+        <TabNavigator session={session} />
+      </NavigationContainer>
+    </Provider>
   );
 }

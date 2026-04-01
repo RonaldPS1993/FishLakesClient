@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
@@ -10,7 +10,6 @@ import LakeCard from "../components/LakeCard";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
 const INITIAL_LATITUDE_DELTA = 0.15;
-const MAX_MARKERS = 30;
 const MARKER_COLOR = "#00BCD4";
 
 /** Converts visible map region to a radius (meters) that encloses the full screen. */
@@ -37,6 +36,7 @@ export default function MapScreen({ navigation }) {
   const favoriteHylakId = useSelector((state) => state.lakes.favoriteHylakId);
   const fetchTimeoutRef = useRef(null);
   const markerSelectedRef = useRef(false);
+  const discoveredLakesRef = useRef(new Map());
 
   // Fetch lakes from internal server API with Bearer token
   const fetchNearbyLakes = useCallback(async (lat, lng, radius) => {
@@ -62,7 +62,7 @@ export default function MapScreen({ navigation }) {
     try {
       const res = await fetch(`${SERVER_URL}/api/users/me/favorite`, { headers: { "Authorization": `Bearer ${session.access_token}` } });
       const json = await res.json();
-      return json.status === "Success" && json.data ? json.data.hylak_id : null;
+      return json.status === "Success" && json.data ? (json.data.hylak_id ?? json.data.id) : null;
     } catch { return null; }
   };
 
@@ -128,7 +128,8 @@ export default function MapScreen({ navigation }) {
           fetchNearbyLakes(position.coords.latitude, position.coords.longitude, radius),
           fetchUserFavorite(),
         ]);
-        setNearbyLakes(lakes.slice(0, MAX_MARKERS));
+        lakes.forEach((lake) => discoveredLakesRef.current.set(getLakeIdentifier(lake), lake));
+        setNearbyLakes([...discoveredLakesRef.current.values()]);
         if (favId !== null) dispatch(setFavoriteHylakId(favId));
       } catch (error) {
         console.error("Error getting location:", error);
@@ -141,13 +142,29 @@ export default function MapScreen({ navigation }) {
   // Re-query lakes on pan/zoom with 400ms debounce; skip on programmatic marker tap
   const handleRegionChange = useCallback((newRegion) => {
     if (markerSelectedRef.current) return;
+    setRegion(newRegion);
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
     fetchTimeoutRef.current = setTimeout(async () => {
       const radius = calculateRadius(newRegion.latitudeDelta, newRegion.longitudeDelta, newRegion.latitude);
       const lakes = await fetchNearbyLakes(newRegion.latitude, newRegion.longitude, radius);
-      setNearbyLakes(lakes.slice(0, MAX_MARKERS));
+      lakes.forEach((lake) => discoveredLakesRef.current.set(getLakeIdentifier(lake), lake));
+      setNearbyLakes([...discoveredLakesRef.current.values()]);
     }, 400);
   }, [fetchNearbyLakes]);
+
+  // Only render markers within the visible region + 30% buffer; cap at 60
+  const visibleMarkers = useMemo(() => {
+    const latBuffer = region.latitudeDelta * 0.65;
+    const lngBuffer = region.longitudeDelta * 0.65;
+    return nearbyLakes
+      .filter((lake) =>
+        lake.pour_lat >= region.latitude - latBuffer &&
+        lake.pour_lat <= region.latitude + latBuffer &&
+        lake.pour_long >= region.longitude - lngBuffer &&
+        lake.pour_long <= region.longitude + lngBuffer
+      )
+      .slice(0, 60);
+  }, [nearbyLakes, region]);
 
   if (locationDenied) {
     return (
@@ -182,7 +199,7 @@ export default function MapScreen({ navigation }) {
           setSelectedLake(null);
         }}
       >
-        {nearbyLakes.map((lake) => (
+        {visibleMarkers.map((lake) => (
           <Marker
             key={lake.hylak_id ?? lake.id}
             coordinate={{ latitude: lake.pour_lat, longitude: lake.pour_long }}

@@ -1,5 +1,4 @@
 import React from "react";
-import { View } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -100,7 +99,7 @@ const TabNavigator = ({ session }) => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: "#1A3C6E",
+        tabBarActiveTintColor: "#0265BF",
         tabBarInactiveTintColor: "#6B7280",
         tabBarLabelStyle: { fontFamily: "poppins_regular", fontSize: 11 },
         tabBarStyle: {
@@ -111,26 +110,13 @@ const TabNavigator = ({ session }) => {
           paddingTop: 8,
         },
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === "Home") {
-            iconName = focused ? "home" : "home-outline";
-          } else if (route.name === "Explore") {
-            iconName = focused ? "compass" : "compass-outline";
-          } else if (route.name === "Catches") {
-            iconName = focused ? "fish" : "fish-outline";
-          } else if (route.name === "Profile") {
-            iconName = focused ? "person" : "person-outline";
-          }
-
-          // Active tab indicator: blue pill background when focused
-          if (focused) {
-            return (
-              <View style={{ backgroundColor: "#E8F0FE", borderRadius: 20, padding: 6 }}>
-                <Ionicons name={iconName} size={size} color={color} />
-              </View>
-            );
-          }
-          return <Ionicons name={iconName} size={size} color={color} />;
+          const iconMap = {
+            Home: focused ? "home" : "home-outline",
+            Explore: focused ? "compass" : "compass-outline",
+            Catches: focused ? "fish" : "fish-outline",
+            Profile: focused ? "person" : "person-outline",
+          };
+          return <Ionicons name={iconMap[route.name]} size={size} color={color} />;
         },
       })}
     >

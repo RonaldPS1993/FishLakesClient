@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons"; // still used for heart icon
 
 /**
  * Lake card overlay component with photo, name, stats, and heart icon.
@@ -16,13 +16,10 @@ export default function LakeCard({ lake, isFavorite, onFavoriteToggle, onPress }
     <View style={styles.lakeCard}>
       {/* Card body and heart are siblings — NOT nested — to avoid touch event issues */}
       <TouchableOpacity style={styles.lakeCardTouchable} activeOpacity={0.9} onPress={onPress}>
-        {lake.photo_url ? (
-          <Image source={{ uri: lake.photo_url }} style={styles.lakeCardPhoto} />
-        ) : (
-          <View style={[styles.lakeCardPhoto, styles.photoPlaceholder]}>
-            <Ionicons name="image-outline" size={24} color="#9CA3AF" />
-          </View>
-        )}
+        <Image
+          source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
+          style={styles.lakeCardPhoto}
+        />
         <View style={styles.lakeCardInfo}>
           <Text style={styles.lakeCardName} numberOfLines={1}>
             {lake.lake_name || "Unknown Lake"}
@@ -75,11 +72,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-  },
-  photoPlaceholder: {
-    backgroundColor: "#E5E7EB",
-    justifyContent: "center",
-    alignItems: "center",
   },
   lakeCardInfo: {
     flex: 1,

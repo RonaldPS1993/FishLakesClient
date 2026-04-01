@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,9 +10,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { useFocusEffect } from "@react-navigation/native";
+import { useDispatch, useSelector } from "react-redux";
+import { setUsername } from "../store/userSlice";
+import { setFavoriteHylakId } from "../store/lakesSlice";
 import { supabase } from "../lib/supabase";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
+
 
 /**
  * Home tab screen — shows greeting and favorite or nearest lake card.
@@ -21,7 +26,8 @@ const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
 export default function HomeScreen({ navigation, session }) {
   const [lake, setLake] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [greeting, setGreeting] = useState("");
+  const dispatch = useDispatch();
+  const username = useSelector((state) => state.user.username);
 
   // Auth gate — push Auth screen when no session
   useEffect(() => {
@@ -30,59 +36,67 @@ export default function HomeScreen({ navigation, session }) {
     }
   }, [session]);
 
-  // Load favorite or nearest lake when session is available
-  useEffect(() => {
-    if (!session) return;
-    const loadData = async () => {
-      const token = session.access_token;
-      const email = session.user?.email || "";
-      const username = email.includes("@") ? email.split("@")[0] : email;
-      setGreeting(username);
+  // Refresh greeting and favorite lake whenever Home tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      if (!session) return;
 
-      try {
-        // Step 1: Check for favorite lake
-        const favRes = await fetch(`${SERVER_URL}/api/users/me/favorite`, {
-          headers: { "Authorization": `Bearer ${token}` },
-        });
-        const favJson = await favRes.json();
+      const refreshGreeting = async () => {
+        if (username) return; // already loaded — ProfileScreen dispatches on save
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", session.user.id)
+          .single();
+        const email = session.user?.email || "";
+        const fallback = email.includes("@") ? email.split("@")[0] : email;
+        dispatch(setUsername(profile?.username || fallback));
+      };
 
-        if (favJson.status === "Success" && favJson.data && favJson.data.hylak_id) {
-          // Favorite found — fetch full lake detail for depth/area
-          const detailRes = await fetch(`${SERVER_URL}/api/lakes/${favJson.data.hylak_id}`, {
+      const loadData = async () => {
+        const token = session.access_token;
+        try {
+          // Step 1: Check for favorite lake
+          const favRes = await fetch(`${SERVER_URL}/api/users/me/favorite`, {
             headers: { "Authorization": `Bearer ${token}` },
           });
-          const detailJson = await detailRes.json();
-          if (detailJson.status === "Success") {
-            setLake(detailJson.data);
-          } else {
-            // Fallback: use what we have from favorite response
-            setLake(favJson.data);
-          }
-        } else {
-          // No favorite — get nearest lake
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === "granted") {
-            const position = await Location.getCurrentPositionAsync({
-              accuracy: Location.LocationAccuracy.Lowest,
+          const favJson = await favRes.json();
+
+          const favIdentifier = favJson.data ? (favJson.data.hylak_id ?? favJson.data.id) : null;
+          if (favJson.status === "Success" && favIdentifier) {
+            dispatch(setFavoriteHylakId(favIdentifier));
+            // Favorite found — fetch full lake detail for depth/area
+            const detailRes = await fetch(`${SERVER_URL}/api/lakes/${favIdentifier}`, {
+              headers: { "Authorization": `Bearer ${token}` },
             });
-            const nearbyRes = await fetch(
-              `${SERVER_URL}/api/lakes/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}&radius=50000`,
-              { headers: { "Authorization": `Bearer ${token}` } }
-            );
-            const nearbyJson = await nearbyRes.json();
-            if (nearbyJson.status === "Success" && nearbyJson.data?.length > 0) {
-              setLake(nearbyJson.data[0]);
+            const detailJson = await detailRes.json();
+            setLake(detailJson.status === "Success" ? detailJson.data : favJson.data);
+          } else {
+            // No favorite — get nearest lake
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === "granted") {
+              const position = await Location.getCurrentPositionAsync({
+                accuracy: Location.LocationAccuracy.Lowest,
+              });
+              const nearbyRes = await fetch(
+                `${SERVER_URL}/api/lakes/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}&radius=50000`,
+                { headers: { "Authorization": `Bearer ${token}` } }
+              );
+              const nearbyJson = await nearbyRes.json();
+              setLake(nearbyJson.status === "Success" && nearbyJson.data?.length > 0 ? nearbyJson.data[0] : null);
             }
           }
+        } catch (error) {
+          console.error("Error loading home data:", error);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Error loading home data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [session]);
+      };
+
+      refreshGreeting();
+      loadData();
+    }, [session])
+  );
 
   // No session — auth gate handles push, return null while redirecting
   if (!session) return null;
@@ -90,7 +104,7 @@ export default function HomeScreen({ navigation, session }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1A3C6E" />
+        <ActivityIndicator size="large" color="#0265BF" />
       </View>
     );
   }
@@ -98,7 +112,7 @@ export default function HomeScreen({ navigation, session }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.greetingSection}>
-        <Text style={styles.greetingText}>Welcome, {greeting}</Text>
+        <Text style={styles.greetingText}>Welcome, {username}</Text>
         <Text style={styles.greetingSubtitle}>Ready to find your next catch?</Text>
       </View>
 
@@ -106,15 +120,12 @@ export default function HomeScreen({ navigation, session }) {
         <TouchableOpacity
           style={styles.lakeCard}
           activeOpacity={0.9}
-          onPress={() => navigation.navigate("LakeDetail", { hylakId: lake.hylak_id })}
+          onPress={() => navigation.navigate("LakeDetail", { lakeId: lake.hylak_id ?? lake.id })}
         >
-          {lake.photo_url ? (
-            <Image source={{ uri: lake.photo_url }} style={styles.cardPhoto} />
-          ) : (
-            <View style={[styles.cardPhoto, styles.photoPlaceholder]}>
-              <Ionicons name="image-outline" size={32} color="#9CA3AF" />
-            </View>
-          )}
+          <Image
+            source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
+            style={styles.cardPhoto}
+          />
           <View style={styles.cardContent}>
             <Text style={styles.cardLakeName} numberOfLines={1}>
               {lake.lake_name || "Unknown Lake"}
@@ -164,7 +175,6 @@ const styles = StyleSheet.create({
     borderColor: "#F3F4F6",
   },
   cardPhoto: { width: 64, height: 64, borderRadius: 12 },
-  photoPlaceholder: { backgroundColor: "#E5E7EB", justifyContent: "center", alignItems: "center" },
   cardContent: { flex: 1, marginLeft: 12 },
   cardLakeName: { fontFamily: "poppins_bold", fontSize: 16, color: "#1A1A2E" },
   cardStats: { flexDirection: "row", alignItems: "center", marginTop: 4 },
