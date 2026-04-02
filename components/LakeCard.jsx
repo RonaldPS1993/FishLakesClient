@@ -21,9 +21,6 @@ export default function LakeCard({ lake, isFavorite, onFavoriteToggle, onPress }
             source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
             style={styles.lakeCardPhoto}
           />
-          {!lake.photo_url && (
-            <Text style={styles.representativePhotoText}>Showing representative photo</Text>
-          )}
         </View>
         <View style={styles.lakeCardInfo}>
           <Text style={styles.lakeCardName} numberOfLines={1}>
@@ -81,13 +78,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-  },
-  representativePhotoText: {
-    fontFamily: "poppins_regular",
-    fontSize: 10,
-    color: "#9CA3AF",
-    textAlign: "center",
-    marginTop: 2,
   },
   lakeCardInfo: {
     flex: 1,
