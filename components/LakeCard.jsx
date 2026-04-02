@@ -16,10 +16,15 @@ export default function LakeCard({ lake, isFavorite, onFavoriteToggle, onPress }
     <View style={styles.lakeCard}>
       {/* Card body and heart are siblings — NOT nested — to avoid touch event issues */}
       <TouchableOpacity style={styles.lakeCardTouchable} activeOpacity={0.9} onPress={onPress}>
-        <Image
-          source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
-          style={styles.lakeCardPhoto}
-        />
+        <View style={styles.lakeCardPhotoWrap}>
+          <Image
+            source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
+            style={styles.lakeCardPhoto}
+          />
+          {!lake.photo_url && (
+            <Text style={styles.representativePhotoText}>Showing representative photo</Text>
+          )}
+        </View>
         <View style={styles.lakeCardInfo}>
           <Text style={styles.lakeCardName} numberOfLines={1}>
             {lake.lake_name || "Unknown Lake"}
@@ -68,10 +73,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
+  lakeCardPhotoWrap: {
+    alignItems: "center",
+    width: 56,
+  },
   lakeCardPhoto: {
     width: 56,
     height: 56,
     borderRadius: 12,
+  },
+  representativePhotoText: {
+    fontFamily: "poppins_regular",
+    fontSize: 10,
+    color: "#9CA3AF",
+    textAlign: "center",
+    marginTop: 2,
   },
   lakeCardInfo: {
     flex: 1,

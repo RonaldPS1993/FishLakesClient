@@ -117,6 +117,9 @@ export default function LakeDetailScreen({ navigation, route }) {
         source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
         style={styles.heroPhoto}
       />
+      {!lake.photo_url && (
+        <Text style={styles.representativePhotoText}>Showing representative photo</Text>
+      )}
 
       <View style={styles.content}>
         {/* Lake name */}
@@ -175,6 +178,7 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" },
   errorText: { fontFamily: "poppins_regular", fontSize: 16, color: "#6B7280", marginTop: 12 },
   heroPhoto: { width: "100%", height: 240 },
+  representativePhotoText: { fontFamily: "poppins_regular", fontSize: 12, color: "#9CA3AF", textAlign: "center", paddingVertical: 6 },
   content: { padding: 20 },
   lakeName: { fontFamily: "poppins_bold", fontSize: 24, color: "#1A1A2E" },
   statsRow: { flexDirection: "row", marginTop: 16, gap: 24 },
