@@ -14,53 +14,57 @@ import { Ionicons } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
 import { setFavoriteHylakId, clearFavorite } from "../store/lakesSlice";
 import { supabase } from "../lib/supabase";
+import ForecastCard from "../components/ForecastCard";
+import LockedForecastCard from "../components/LockedForecastCard";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
 
-/**
- * Lake Detail screen — shows hero photo, stats, directions, and favorite toggle.
- * @param {{ navigation: object, route: object }} props
- */
 export default function LakeDetailScreen({ navigation, route }) {
-  // lakeId may be a hylak_id integer (from hydrolakes) or a UUID string (from Google Places-only lakes)
   const { lakeId, hylakId } = route.params;
-  const lakeIdentifier = lakeId ?? hylakId; // support both old and new navigation param names
+  const lakeIdentifier = lakeId ?? hylakId;
   const [lake, setLake] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [forecast, setForecast] = useState(null);
+  const [forecastLocked, setForecastLocked] = useState(false);
   const dispatch = useDispatch();
   const favoriteHylakId = useSelector((state) => state.lakes.favoriteHylakId);
   const isFavorite = favoriteHylakId === lakeIdentifier;
 
-  // Fetch lake detail on mount — lakeIdentifier may be hylak_id or UUID
   useEffect(() => {
-    const loadLake = async () => {
+    const loadData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        console.error("[LakeDetail] no session — cannot load lake");
         setLoading(false);
         return;
       }
       const token = session.access_token;
+      const headers = { "Authorization": `Bearer ${token}` };
       try {
-        const lakeRes = await fetch(`${SERVER_URL}/api/lakes/${lakeIdentifier}`, {
-          headers: { "Authorization": `Bearer ${token}` },
-        });
+        const [lakeRes, forecastRes] = await Promise.all([
+          fetch(`${SERVER_URL}/api/lakes/${lakeIdentifier}`, { headers }),
+          fetch(`${SERVER_URL}/api/lakes/${lakeIdentifier}/forecast`, { headers }),
+        ]);
         const lakeJson = await lakeRes.json();
         if (lakeJson.status === "Success") {
           setLake(lakeJson.data);
-        } else {
-          console.error("[LakeDetail] lake fetch failed — status:", lakeRes.status, "body:", JSON.stringify(lakeJson));
         }
-      } catch (error) {
-        console.error("[LakeDetail] fetch threw:", error);
+        if (forecastRes.status === 403) {
+          setForecastLocked(true);
+        } else {
+          const forecastJson = await forecastRes.json();
+          if (forecastJson.status === "Success") {
+            setForecast(forecastJson.data);
+          }
+        }
+      } catch {
+        // fetch error — loading state cleared in finally
       } finally {
         setLoading(false);
       }
     };
-    loadLake();
+    loadData();
   }, [lakeIdentifier]);
 
-  // Opens Apple Maps (iOS) or Google Maps (Android) with lake coordinates
   const openDirections = () => {
     if (!lake) return;
     const label = encodeURIComponent(lake.lake_name || "Lake");
@@ -74,7 +78,6 @@ export default function LakeDetailScreen({ navigation, route }) {
     });
   };
 
-  // Toggles favorite status — auth gate pushes Auth screen if not signed in
   const toggleFavorite = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -88,8 +91,8 @@ export default function LakeDetailScreen({ navigation, route }) {
         headers: { "Authorization": `Bearer ${session.access_token}` },
       });
       dispatch(isFavorite ? clearFavorite() : setFavoriteHylakId(lakeIdentifier));
-    } catch (error) {
-      console.error("Error toggling favorite:", error);
+    } catch {
+      // toggle error — state unchanged
     }
   };
 
@@ -112,7 +115,6 @@ export default function LakeDetailScreen({ navigation, route }) {
 
   return (
     <ScrollView style={styles.container} bounces={false}>
-      {/* Hero photo */}
       <Image
         source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
         style={styles.heroPhoto}
@@ -122,10 +124,14 @@ export default function LakeDetailScreen({ navigation, route }) {
       )}
 
       <View style={styles.content}>
-        {/* Lake name */}
         <Text style={styles.lakeName}>{lake.lake_name || "Unknown Lake"}</Text>
 
-        {/* Stats row */}
+        {forecastLocked ? (
+          <LockedForecastCard />
+        ) : forecast ? (
+          <ForecastCard forecast={forecast} />
+        ) : null}
+
         <View style={styles.statsRow}>
           {lake.depth_avg != null && (
             <View style={styles.statItem}>
@@ -143,7 +149,6 @@ export default function LakeDetailScreen({ navigation, route }) {
           )}
         </View>
 
-        {/* About section */}
         {lake.about ? (
           <View style={styles.aboutSection}>
             <Text style={styles.sectionTitle}>About</Text>
@@ -151,13 +156,11 @@ export default function LakeDetailScreen({ navigation, route }) {
           </View>
         ) : null}
 
-        {/* Get Directions button */}
         <TouchableOpacity style={styles.directionsButton} onPress={openDirections}>
           <Ionicons name="navigate-outline" size={20} color="#FFFFFF" />
           <Text style={styles.directionsButtonText}>Get Directions</Text>
         </TouchableOpacity>
 
-        {/* Favorite button */}
         <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite}>
           <Ionicons
             name={isFavorite ? "heart" : "heart-outline"}
