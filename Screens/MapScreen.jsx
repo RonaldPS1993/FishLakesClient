@@ -16,8 +16,24 @@ const MARKER_COLOR = "#00BCD4";
 const calculateRadius = (deltaLat, deltaLng, centerLat) => {
   const halfHeightM = (deltaLat / 2) * 111320;
   const halfWidthM = (deltaLng / 2) * 111320 * Math.cos(centerLat * (Math.PI / 180));
-  // Minimum 5km so close-zoom pans don't produce empty results
-  return Math.max(Math.sqrt(halfHeightM ** 2 + halfWidthM ** 2), 5000);
+  // 2km minimum — tight enough to avoid over-fetching at close zoom
+  return Math.max(Math.sqrt(halfHeightM ** 2 + halfWidthM ** 2), 2000);
+};
+
+/**
+ * Prunes the discovered lakes map to the closest `keepCount` lakes from a center point.
+ * Prevents unbounded memory growth as the user pans around.
+ */
+const pruneDiscoveredLakes = (mapRef, centerLat, centerLng, keepCount = 300) => {
+  if (mapRef.current.size <= keepCount) return;
+  const sorted = [...mapRef.current.values()].sort((a, b) => {
+    const dA = Math.abs(a.pour_lat - centerLat) + Math.abs(a.pour_long - centerLng);
+    const dB = Math.abs(b.pour_lat - centerLat) + Math.abs(b.pour_long - centerLng);
+    return dA - dB;
+  });
+  mapRef.current = new Map(
+    sorted.slice(0, keepCount).map((l) => [getLakeIdentifier(l), l])
+  );
 };
 
 /**
@@ -129,6 +145,7 @@ export default function MapScreen({ navigation }) {
           fetchUserFavorite(),
         ]);
         lakes.forEach((lake) => discoveredLakesRef.current.set(getLakeIdentifier(lake), lake));
+        pruneDiscoveredLakes(discoveredLakesRef, position.coords.latitude, position.coords.longitude);
         setNearbyLakes([...discoveredLakesRef.current.values()]);
         if (favId !== null) dispatch(setFavoriteHylakId(favId));
       } catch (error) {
@@ -148,22 +165,46 @@ export default function MapScreen({ navigation }) {
       const radius = calculateRadius(newRegion.latitudeDelta, newRegion.longitudeDelta, newRegion.latitude);
       const lakes = await fetchNearbyLakes(newRegion.latitude, newRegion.longitude, radius);
       lakes.forEach((lake) => discoveredLakesRef.current.set(getLakeIdentifier(lake), lake));
+      pruneDiscoveredLakes(discoveredLakesRef, newRegion.latitude, newRegion.longitude);
       setNearbyLakes([...discoveredLakesRef.current.values()]);
     }, 400);
   }, [fetchNearbyLakes]);
 
-  // Only render markers within the visible region + 30% buffer; cap at 60
+  // Render at most 30 markers. On-screen lakes (within the visible region) always render
+  // first sorted by distance from center. Remaining slots fill with the closest off-screen
+  // lakes within a 1.5x buffer. This prevents visible lakes from being dropped by the cap.
   const visibleMarkers = useMemo(() => {
-    const latBuffer = region.latitudeDelta * 0.65;
-    const lngBuffer = region.longitudeDelta * 0.65;
-    return nearbyLakes
-      .filter((lake) =>
-        lake.pour_lat >= region.latitude - latBuffer &&
-        lake.pour_lat <= region.latitude + latBuffer &&
-        lake.pour_long >= region.longitude - lngBuffer &&
-        lake.pour_long <= region.longitude + lngBuffer
+    const halfLat = region.latitudeDelta / 2;
+    const halfLng = region.longitudeDelta / 2;
+
+    const withDist = nearbyLakes
+      .filter((lake) => lake.pour_lat != null && lake.pour_long != null)
+      .map((lake) => {
+        const dlat = Math.abs(lake.pour_lat - region.latitude);
+        const dlng = Math.abs(lake.pour_long - region.longitude);
+        return { lake, dlat, dlng, dist: dlat + dlng };
+      });
+
+    // First priority: lakes strictly within the visible region
+    const onScreen = withDist
+      .filter(({ dlat, dlng }) => dlat <= halfLat && dlng <= halfLng)
+      .sort((a, b) => a.dist - b.dist)
+      .map(({ lake }) => lake);
+
+    if (onScreen.length >= 30) return onScreen.slice(0, 30);
+
+    // Fill remaining slots with closest off-screen lakes within a 1.5x buffer
+    const onScreenIds = new Set(onScreen.map((l) => getLakeIdentifier(l)));
+    const buffer = withDist
+      .filter(({ lake, dlat, dlng }) =>
+        !onScreenIds.has(getLakeIdentifier(lake)) &&
+        dlat <= halfLat * 1.5 &&
+        dlng <= halfLng * 1.5
       )
-      .slice(0, 60);
+      .sort((a, b) => a.dist - b.dist)
+      .map(({ lake }) => lake);
+
+    return [...onScreen, ...buffer].slice(0, 30);
   }, [nearbyLakes, region]);
 
   if (locationDenied) {
