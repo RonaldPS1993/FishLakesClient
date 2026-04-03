@@ -2,6 +2,12 @@ import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+const getSatelliteUrl = (lat, lng) => {
+  if (!lat || !lng || !GOOGLE_MAPS_KEY) return null;
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=200x200&scale=2&maptype=satellite&key=${GOOGLE_MAPS_KEY}`;
+};
+
 /**
  * Lake card for the Home tab — shows photo, name, stats, and forecast score.
  * @param {{ lake: object, forecast: object|null, forecastLocked: boolean, onPress: Function }} props
@@ -10,7 +16,13 @@ export default function HomeLakeCard({ lake, forecast, forecastLocked, onPress }
   return (
     <TouchableOpacity style={styles.lakeCard} activeOpacity={0.9} onPress={onPress}>
       <Image
-        source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
+        source={
+          lake.photo_url
+            ? { uri: lake.photo_url }
+            : getSatelliteUrl(lake.pour_lat, lake.pour_long)
+            ? { uri: getSatelliteUrl(lake.pour_lat, lake.pour_long) }
+            : require("../assets/defaultLake.png")
+        }
         style={styles.cardPhoto}
       />
       <View style={styles.cardContent}>

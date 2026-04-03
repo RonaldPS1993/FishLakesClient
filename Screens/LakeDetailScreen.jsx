@@ -18,6 +18,12 @@ import ForecastCard from "../components/ForecastCard";
 import LockedForecastCard from "../components/LockedForecastCard";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
+const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+const getSatelliteUrl = (lat, lng) => {
+  if (!lat || !lng || !GOOGLE_MAPS_KEY) return null;
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=640x380&scale=2&maptype=satellite&key=${GOOGLE_MAPS_KEY}`;
+};
 
 export default function LakeDetailScreen({ navigation, route }) {
   const { lakeId, hylakId } = route.params;
@@ -116,12 +122,15 @@ export default function LakeDetailScreen({ navigation, route }) {
   return (
     <ScrollView style={styles.container} bounces={false}>
       <Image
-        source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
+        source={
+          lake.photo_url
+            ? { uri: lake.photo_url }
+            : getSatelliteUrl(lake.pour_lat, lake.pour_long)
+            ? { uri: getSatelliteUrl(lake.pour_lat, lake.pour_long) }
+            : require("../assets/defaultLake.png")
+        }
         style={styles.heroPhoto}
       />
-      {!lake.photo_url && (
-        <Text style={styles.representativePhotoText}>Showing representative photo</Text>
-      )}
 
       <View style={styles.content}>
         <Text style={styles.lakeName}>{lake.lake_name || "Unknown Lake"}</Text>
@@ -181,7 +190,6 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" },
   errorText: { fontFamily: "poppins_regular", fontSize: 16, color: "#6B7280", marginTop: 12 },
   heroPhoto: { width: "100%", height: 240 },
-  representativePhotoText: { fontFamily: "poppins_regular", fontSize: 12, color: "#9CA3AF", textAlign: "center", paddingVertical: 6 },
   content: { padding: 20 },
   lakeName: { fontFamily: "poppins_bold", fontSize: 24, color: "#1A1A2E" },
   statsRow: { flexDirection: "row", marginTop: 16, gap: 24 },

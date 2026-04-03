@@ -2,6 +2,12 @@ import React from "react";
 import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // still used for heart icon
 
+const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+const getSatelliteUrl = (lat, lng) => {
+  if (!lat || !lng || !GOOGLE_MAPS_KEY) return null;
+  return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=200x200&scale=2&maptype=satellite&key=${GOOGLE_MAPS_KEY}`;
+};
+
 /**
  * Lake card overlay component with photo, name, stats, and heart icon.
  * Rendered as an absolute-positioned overlay at the bottom of the map screen.
@@ -18,7 +24,13 @@ export default function LakeCard({ lake, isFavorite, onFavoriteToggle, onPress }
       <TouchableOpacity style={styles.lakeCardTouchable} activeOpacity={0.9} onPress={onPress}>
         <View style={styles.lakeCardPhotoWrap}>
           <Image
-            source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
+            source={
+              lake.photo_url
+                ? { uri: lake.photo_url }
+                : getSatelliteUrl(lake.pour_lat, lake.pour_long)
+                ? { uri: getSatelliteUrl(lake.pour_lat, lake.pour_long) }
+                : require("../assets/defaultLake.png")
+            }
             style={styles.lakeCardPhoto}
           />
         </View>
