@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  Image,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
@@ -15,17 +13,19 @@ import { useDispatch, useSelector } from "react-redux";
 import { setUsername } from "../store/userSlice";
 import { setFavoriteHylakId } from "../store/lakesSlice";
 import { supabase } from "../lib/supabase";
+import HomeLakeCard from "../components/HomeLakeCard";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
 
-
 /**
- * Home tab screen — shows greeting and favorite or nearest lake card.
+ * Home tab screen — shows greeting and favorite or nearest lake card with forecast.
  * @param {{ navigation: object, session: object|null }} props
  */
 export default function HomeScreen({ navigation, session }) {
   const [lake, setLake] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [forecast, setForecast] = useState(null);
+  const [forecastLocked, setForecastLocked] = useState(false);
   const dispatch = useDispatch();
   const username = useSelector((state) => state.user.username);
 
@@ -55,22 +55,15 @@ export default function HomeScreen({ navigation, session }) {
 
       const loadData = async () => {
         const token = session.access_token;
+        const headers = { "Authorization": `Bearer ${token}` };
         try {
-          // Step 1: Check for favorite lake
-          const favRes = await fetch(`${SERVER_URL}/api/users/me/favorite`, {
-            headers: { "Authorization": `Bearer ${token}` },
-          });
+          // Step 1: Resolve lake identifier (favorite or nearest)
+          const favRes = await fetch(`${SERVER_URL}/api/users/me/favorite`, { headers });
           const favJson = await favRes.json();
+          let lakeIdentifier = favJson.data ? (favJson.data.hylak_id ?? favJson.data.id) : null;
 
-          const favIdentifier = favJson.data ? (favJson.data.hylak_id ?? favJson.data.id) : null;
-          if (favJson.status === "Success" && favIdentifier) {
-            dispatch(setFavoriteHylakId(favIdentifier));
-            // Favorite found — fetch full lake detail for depth/area
-            const detailRes = await fetch(`${SERVER_URL}/api/lakes/${favIdentifier}`, {
-              headers: { "Authorization": `Bearer ${token}` },
-            });
-            const detailJson = await detailRes.json();
-            setLake(detailJson.status === "Success" ? detailJson.data : favJson.data);
+          if (favJson.status === "Success" && lakeIdentifier) {
+            dispatch(setFavoriteHylakId(lakeIdentifier));
           } else {
             // No favorite — get nearest lake
             const { status } = await Location.requestForegroundPermissionsAsync();
@@ -80,10 +73,37 @@ export default function HomeScreen({ navigation, session }) {
               });
               const nearbyRes = await fetch(
                 `${SERVER_URL}/api/lakes/nearby?lat=${position.coords.latitude}&lng=${position.coords.longitude}&radius=50000`,
-                { headers: { "Authorization": `Bearer ${token}` } }
+                { headers }
               );
               const nearbyJson = await nearbyRes.json();
-              setLake(nearbyJson.status === "Success" && nearbyJson.data?.length > 0 ? nearbyJson.data[0] : null);
+              if (nearbyJson.status === "Success" && nearbyJson.data?.length > 0) {
+                lakeIdentifier = nearbyJson.data[0].hylak_id ?? nearbyJson.data[0].id;
+              }
+            }
+          }
+
+          if (!lakeIdentifier) {
+            setLoading(false);
+            return;
+          }
+
+          // Step 2: Fetch lake detail AND forecast in parallel (per D-25)
+          const [detailRes, forecastRes] = await Promise.all([
+            fetch(`${SERVER_URL}/api/lakes/${lakeIdentifier}`, { headers }),
+            fetch(`${SERVER_URL}/api/lakes/${lakeIdentifier}/forecast`, { headers }),
+          ]);
+
+          const detailJson = await detailRes.json();
+          if (detailJson.status === "Success") {
+            setLake(detailJson.data);
+          }
+
+          if (forecastRes.status === 403) {
+            setForecastLocked(true);
+          } else {
+            const forecastJson = await forecastRes.json();
+            if (forecastJson.status === "Success") {
+              setForecast(forecastJson.data);
             }
           }
         } catch (error) {
@@ -95,7 +115,7 @@ export default function HomeScreen({ navigation, session }) {
 
       refreshGreeting();
       loadData();
-    }, [session])
+    }, [session, dispatch])
   );
 
   // No session — auth gate handles push, return null while redirecting
@@ -117,33 +137,12 @@ export default function HomeScreen({ navigation, session }) {
       </View>
 
       {lake ? (
-        <TouchableOpacity
-          style={styles.lakeCard}
-          activeOpacity={0.9}
+        <HomeLakeCard
+          lake={lake}
+          forecast={forecast}
+          forecastLocked={forecastLocked}
           onPress={() => navigation.navigate("LakeDetail", { lakeId: lake.hylak_id ?? lake.id })}
-        >
-          <Image
-            source={lake.photo_url ? { uri: lake.photo_url } : require("../assets/defaultLake.png")}
-            style={styles.cardPhoto}
-          />
-          <View style={styles.cardContent}>
-            <Text style={styles.cardLakeName} numberOfLines={1}>
-              {lake.lake_name || "Unknown Lake"}
-            </Text>
-            <View style={styles.cardStats}>
-              {lake.depth_avg != null && (
-                <Text style={styles.cardStatText}>{lake.depth_avg.toFixed(1)} m deep</Text>
-              )}
-              {lake.depth_avg != null && lake.lake_area != null && (
-                <Text style={styles.cardStatDot}> · </Text>
-              )}
-              {lake.lake_area != null && (
-                <Text style={styles.cardStatText}>{lake.lake_area.toFixed(1)} km²</Text>
-              )}
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-        </TouchableOpacity>
+        />
       ) : (
         <View style={styles.emptyState}>
           <Ionicons name="fish-outline" size={48} color="#6B7280" />
@@ -160,26 +159,6 @@ const styles = StyleSheet.create({
   greetingSection: { marginTop: 20, marginBottom: 24 },
   greetingText: { fontFamily: "poppins_bold", fontSize: 24, color: "#1A1A2E" },
   greetingSubtitle: { fontFamily: "poppins_regular", fontSize: 14, color: "#6B7280", marginTop: 4 },
-  lakeCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
-  },
-  cardPhoto: { width: 64, height: 64, borderRadius: 12 },
-  cardContent: { flex: 1, marginLeft: 12 },
-  cardLakeName: { fontFamily: "poppins_bold", fontSize: 16, color: "#1A1A2E" },
-  cardStats: { flexDirection: "row", alignItems: "center", marginTop: 4 },
-  cardStatText: { fontFamily: "poppins_regular", fontSize: 13, color: "#6B7280" },
-  cardStatDot: { fontFamily: "poppins_regular", fontSize: 13, color: "#6B7280" },
   emptyState: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyText: { fontFamily: "poppins_regular", fontSize: 16, color: "#6B7280", marginTop: 12 },
 });
