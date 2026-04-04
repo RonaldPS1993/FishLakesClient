@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
@@ -44,7 +44,7 @@ const getLakeIdentifier = (lake) => lake.hylak_id ?? lake.id;
 
 export default function MapScreen({ navigation }) {
   const [region, setRegion] = useState({ latitude: 0, longitude: 0, latitudeDelta: INITIAL_LATITUDE_DELTA, longitudeDelta: INITIAL_LATITUDE_DELTA });
-  const [nearbyLakes, setNearbyLakes] = useState([]);
+  const [displayedLakes, setDisplayedLakes] = useState([]);
   const [selectedLake, setSelectedLake] = useState(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -146,7 +146,7 @@ export default function MapScreen({ navigation }) {
         ]);
         lakes.forEach((lake) => discoveredLakesRef.current.set(getLakeIdentifier(lake), lake));
         pruneDiscoveredLakes(discoveredLakesRef, position.coords.latitude, position.coords.longitude);
-        setNearbyLakes([...discoveredLakesRef.current.values()]);
+        setDisplayedLakes([...discoveredLakesRef.current.values()]);
         if (favId !== null) dispatch(setFavoriteHylakId(favId));
       } catch (error) {
         console.error("Error getting location:", error);
@@ -156,56 +156,20 @@ export default function MapScreen({ navigation }) {
     })();
   }, []);
 
-  // Re-query lakes on pan/zoom with 400ms debounce; skip on programmatic marker tap
+  // Re-query lakes on pan/zoom with 400ms debounce; skip on programmatic marker tap.
+  // Never updates region state — MapView owns its own viewport after initial render.
+  // Markers only change when the server returns new data, not on every pan frame.
   const handleRegionChange = useCallback((newRegion) => {
     if (markerSelectedRef.current) return;
-    setRegion(newRegion);
     if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
     fetchTimeoutRef.current = setTimeout(async () => {
       const radius = calculateRadius(newRegion.latitudeDelta, newRegion.longitudeDelta, newRegion.latitude);
       const lakes = await fetchNearbyLakes(newRegion.latitude, newRegion.longitude, radius);
       lakes.forEach((lake) => discoveredLakesRef.current.set(getLakeIdentifier(lake), lake));
       pruneDiscoveredLakes(discoveredLakesRef, newRegion.latitude, newRegion.longitude);
-      setNearbyLakes([...discoveredLakesRef.current.values()]);
+      setDisplayedLakes([...discoveredLakesRef.current.values()]);
     }, 400);
   }, [fetchNearbyLakes]);
-
-  // Render at most 30 markers. On-screen lakes (within the visible region) always render
-  // first sorted by distance from center. Remaining slots fill with the closest off-screen
-  // lakes within a 1.5x buffer. This prevents visible lakes from being dropped by the cap.
-  const visibleMarkers = useMemo(() => {
-    const halfLat = region.latitudeDelta / 2;
-    const halfLng = region.longitudeDelta / 2;
-
-    const withDist = nearbyLakes
-      .filter((lake) => lake.pour_lat != null && lake.pour_long != null)
-      .map((lake) => {
-        const dlat = Math.abs(lake.pour_lat - region.latitude);
-        const dlng = Math.abs(lake.pour_long - region.longitude);
-        return { lake, dlat, dlng, dist: dlat + dlng };
-      });
-
-    // First priority: lakes strictly within the visible region
-    const onScreen = withDist
-      .filter(({ dlat, dlng }) => dlat <= halfLat && dlng <= halfLng)
-      .sort((a, b) => a.dist - b.dist)
-      .map(({ lake }) => lake);
-
-    if (onScreen.length >= 30) return onScreen.slice(0, 30);
-
-    // Fill remaining slots with closest off-screen lakes within a 1.5x buffer
-    const onScreenIds = new Set(onScreen.map((l) => getLakeIdentifier(l)));
-    const buffer = withDist
-      .filter(({ lake, dlat, dlng }) =>
-        !onScreenIds.has(getLakeIdentifier(lake)) &&
-        dlat <= halfLat * 1.5 &&
-        dlng <= halfLng * 1.5
-      )
-      .sort((a, b) => a.dist - b.dist)
-      .map(({ lake }) => lake);
-
-    return [...onScreen, ...buffer].slice(0, 30);
-  }, [nearbyLakes, region]);
 
   if (locationDenied) {
     return (
@@ -240,7 +204,7 @@ export default function MapScreen({ navigation }) {
           setSelectedLake(null);
         }}
       >
-        {visibleMarkers.map((lake) => (
+        {displayedLakes.map((lake) => (
           <Marker
             key={lake.hylak_id ?? lake.id}
             coordinate={{ latitude: lake.pour_lat, longitude: lake.pour_long }}

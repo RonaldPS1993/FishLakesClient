@@ -52,6 +52,9 @@ export default function HomeLakeCard({ lake, forecast, forecastLocked, onPress }
               <Text style={styles.scoreBadgeText}>{forecast.score}</Text>
             </View>
             <Text style={[styles.forecastLabel, { color: forecast.color }]}>{forecast.label}</Text>
+            {forecast.forecastDate === "tomorrow" && (
+              <Text style={styles.tomorrowTag}>Tomorrow</Text>
+            )}
           </View>
         ) : null}
       </View>
@@ -86,4 +89,5 @@ const styles = StyleSheet.create({
   scoreBadgeText: { fontFamily: "poppins_bold", fontSize: 13, color: "#FFFFFF" },
   forecastLabel: { fontFamily: "poppins_bold", fontSize: 13 },
   forecastLockedText: { fontFamily: "poppins_regular", fontSize: 12, color: "#9CA3AF" },
+  tomorrowTag: { fontFamily: "poppins_regular", fontSize: 11, color: "#9CA3AF" },
 });

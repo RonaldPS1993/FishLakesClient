@@ -20,11 +20,13 @@ export default function ForecastCard({ forecast }) {
         </Text>
         <View style={styles.labelColumn}>
           <Text style={[styles.label, { color: forecast.color }]}>{forecast.label}</Text>
-          <Text style={styles.subtitle}>Fishing Forecast</Text>
+          <Text style={styles.subtitle}>
+            {forecast.forecastDate === "tomorrow" ? "Tomorrow's Forecast" : "Fishing Forecast"}
+          </Text>
         </View>
       </View>
 
-      {forecast.bestBiteTimes && forecast.bestBiteTimes.length > 0 && (
+      {forecast.bestBiteTimes && forecast.bestBiteTimes.length > 0 ? (
         <View style={styles.biteTimesSection}>
           {forecast.bestBiteTimes.slice(0, 2).map((bt, i) => (
             <View key={i} style={styles.biteTimeRow}>
@@ -34,7 +36,11 @@ export default function ForecastCard({ forecast }) {
             </View>
           ))}
         </View>
-      )}
+      ) : forecast.forecastDate !== "tomorrow" ? (
+        <View style={styles.biteTimesSection}>
+          <Text style={styles.noBitesText}>No more bite windows today</Text>
+        </View>
+      ) : null}
 
       <View style={styles.miniRow}>
         {forecast.weather != null && (
@@ -77,6 +83,7 @@ const styles = StyleSheet.create({
   biteTimeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   biteTimeRange: { fontFamily: "poppins_regular", fontSize: 14, color: "#1A1A2E" },
   biteTimeLabel: { fontFamily: "poppins_regular", fontSize: 12, color: "#6B7280" },
+  noBitesText: { fontFamily: "poppins_regular", fontSize: 13, color: "#9CA3AF", fontStyle: "italic" },
   miniRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#F3F4F6" },
   miniItem: { alignItems: "center", gap: 4 },
   miniEmoji: { fontSize: 16, lineHeight: 20 },

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
@@ -14,6 +15,7 @@ import { setUsername } from "../store/userSlice";
 import { setFavoriteHylakId } from "../store/lakesSlice";
 import { supabase } from "../lib/supabase";
 import HomeLakeCard from "../components/HomeLakeCard";
+import ForecastSummary from "../components/ForecastSummary";
 
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL;
 
@@ -131,30 +133,36 @@ export default function HomeScreen({ navigation, session }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.greetingSection}>
-        <Text style={styles.greetingText}>Welcome, {username}</Text>
-        <Text style={styles.greetingSubtitle}>Ready to find your next catch?</Text>
-      </View>
-
-      {lake ? (
-        <HomeLakeCard
-          lake={lake}
-          forecast={forecast}
-          forecastLocked={forecastLocked}
-          onPress={() => navigation.navigate("LakeDetail", { lakeId: lake.hylak_id ?? lake.id })}
-        />
-      ) : (
-        <View style={styles.emptyState}>
-          <Ionicons name="fish-outline" size={48} color="#6B7280" />
-          <Text style={styles.emptyText}>No lakes found nearby</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.greetingSection}>
+          <Text style={styles.greetingText}>Welcome, {username}</Text>
+          <Text style={styles.greetingSubtitle}>Ready to find your next catch?</Text>
         </View>
-      )}
+
+        {lake ? (
+          <>
+            <HomeLakeCard
+              lake={lake}
+              forecast={forecast}
+              forecastLocked={forecastLocked}
+              onPress={() => navigation.navigate("LakeDetail", { lakeId: lake.hylak_id ?? lake.id })}
+            />
+            <ForecastSummary forecast={forecast} />
+          </>
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="fish-outline" size={48} color="#6B7280" />
+            <Text style={styles.emptyText}>No lakes found nearby</Text>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF", paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FFFFFF" },
   greetingSection: { marginTop: 20, marginBottom: 24 },
   greetingText: { fontFamily: "poppins_bold", fontSize: 24, color: "#1A1A2E" },
